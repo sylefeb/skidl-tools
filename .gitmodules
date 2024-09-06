@@ -1,0 +1,6 @@
+[submodule "libs/LibSL-small"]
+	path = libs/LibSL-small
+	url = git@github.com:sylefeb/LibSL-small.git
+[submodule "libs/sexpresso"]
+	path = libs/sexpresso
+	url = https://github.com/BitPuffin/sexpresso.git
