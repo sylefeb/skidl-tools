@@ -85,14 +85,14 @@ private:
   
   void findAttributes(sexpresso::Sexp& se,
                      sexpresso::Sexp&  parent,int child_id,
-                     // TODO: std::map<std::string,sexpresso::Sexp*> _sig_to_node,
+                     std::map<std::string,sexpresso::Sexp*>& _sig_to_node,
                      std::map<std::string,std::map<std::string,sexpresso::Sexp*> >& _all_attrs)
   {
     if (se.childCount() > 0) {
       if (se.getChild(0).isString()) {
         if (se.getChild(0).value.str == "at") {
           auto sig = signature(parent, child_id);
-          // _sig_to_node[sig] = &se;
+          _sig_to_node[sig]     = &parent;
           _all_attrs[sig]["at"] = &se;
         }
       }
@@ -101,11 +101,11 @@ private:
       if (se.getChild(c).isString()) {
         if (se.getChild(c).value.str == "hide") {
           auto sig = signature(se,c);
-          // _sig_to_node[sig] = &se;
+          _sig_to_node[sig]       = &se;
           _all_attrs[sig]["hide"] = &se.getChild(c);
         }
       } else {
-        findAttributes(se.getChild(c), se,c, _all_attrs);
+        findAttributes(se.getChild(c), se,c, _sig_to_node, _all_attrs);
       }
     }
   }
@@ -129,10 +129,12 @@ public:
       if (D != m_FootprintsByRef.end()) { // match!
         // find positions in the source footprint
         std::map<std::string, std::map<std::string, sexpresso::Sexp*> > srcs;
-        source.findAttributes(*sse,source.root(),0,srcs);
+        std::map<std::string, sexpresso::Sexp*> src_sig_to_node;
+        source.findAttributes(*sse,source.root(),0,src_sig_to_node,srcs);
         // find positions in this footprint
         std::map<std::string, std::map<std::string, sexpresso::Sexp*> > dests;
-        findAttributes(*D->second,m_Root,0,dests);
+        std::map<std::string, sexpresso::Sexp*> dst_sig_to_node;
+        findAttributes(*D->second,m_Root,0, dst_sig_to_node,dests);
         std::cerr << "===== footprints " << sfp << " <-> " << D->first << '\n';
         // match all and override
         for (auto dpos : dests) { // go through all destination signatures
@@ -141,10 +143,16 @@ public:
             // replace nodes with
             for (auto attr : S->second) {
               if (dpos.second.count(attr.first)) {
+                // replace
                 (*dpos.second.at(attr.first)) = (*attr.second);
               } else {
-                // TODO (add attr)
+                // add
                 LIBSL_TRACE;
+                // -> find parent in destination
+                auto D = dst_sig_to_node.find(dpos.first);
+                sl_assert(D != dst_sig_to_node.end());
+                LIBSL_TRACE;
+                D->second->addChild(*attr.second);
               }
             }
           }
