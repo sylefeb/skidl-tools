@@ -3,4 +3,4 @@
 	url = git@github.com:sylefeb/LibSL-small.git
 [submodule "libs/sexpresso"]
 	path = libs/sexpresso
-	url = https://github.com/BitPuffin/sexpresso.git
+	url = git@github.com:sylefeb/sexpresso.git
