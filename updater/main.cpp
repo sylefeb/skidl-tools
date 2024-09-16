@@ -143,9 +143,7 @@ public:
         ///       are not easily specified ; this might require have command
         ///       line capabilities to not touch certain aspects of a new incoming
         ///       footprint, as this will always erase by the old one
-        *D->second = *sse;
-        /// NOTE: this replacement above could be where we try to be more subtle,
-        ///       with a special function to transfer footprint attributes
+        transferFootprint(*D->second,*sse);
 #if 0
         // find positions in the source footprint
         std::map<std::string, std::map<std::string, sexpresso::Sexp*> > srcs;
@@ -180,6 +178,100 @@ public:
 #endif
       }
     }
+  }
+
+  bool isPad(const sexpresso::Sexp& n)
+  {
+    if (n.isString()) return false;
+    if (n.childCount() > 1) {
+      if (n.getChild(0).isString()) {
+        if (n.getChild(0).value.str == "pad" && n.getChild(1).isString()) {
+          // pad!
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool isNet(const sexpresso::Sexp& n)
+  {
+    if (n.isString()) return false;
+    if (n.childCount() > 1) {
+      if (n.getChild(0).isString()) {
+        if (n.getChild(0).value.str == "net" && n.getChild(1).isString()) {
+          // net!
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  const sexpresso::Sexp& getPad(std::string name,const sexpresso::Sexp& footprint)
+  {
+    for (int c = 0 ; c < footprint.childCount() ; ++c) {
+      if (isPad(footprint.getChild(c))) {
+        if (footprint.getChild(c).getChild(1).value.str == name) {
+          return footprint.getChild(c);
+        }
+      }
+    }
+    throw LibSL::Errors::Fatal("could not find pad %s",name.c_str());
+    static sexpresso::Sexp not_found;
+    return not_found;
+  }
+
+  const sexpresso::Sexp& getNet(const sexpresso::Sexp& pad)
+  {
+    for (int c = 0 ; c < pad.childCount() ; ++c) {
+      if (isNet(pad.getChild(c))) {
+        return pad.getChild(c);
+      }
+    }
+    throw LibSL::Errors::Fatal("could not find net in pad");
+    static sexpresso::Sexp not_found;
+    return not_found;
+  }
+
+  sexpresso::Sexp transferPad(const sexpresso::Sexp& src_pad, const sexpresso::Sexp& dst_footprint)
+  {
+    sexpresso::Sexp new_pad;
+    std::cerr << "xfer pad " << src_pad.getChild(1).value.str << '\n';
+    const sexpresso::Sexp& dst_pad = getPad(src_pad.getChild(1).value.str,dst_footprint);
+    // from src: all but net
+    for (int c = 0 ; c < src_pad.childCount() ; ++c) {
+      if (!isNet(src_pad.getChild(c))) {
+        new_pad.addChild(src_pad.getChild(c));
+      }
+    }
+    // from dst: nets
+    try {
+      auto net = getNet(dst_pad);
+      new_pad.addChild(net);
+    } catch (...) {
+      // no net in pad, ignore
+    }
+    return new_pad;
+  }
+
+  void transferFootprint(sexpresso::Sexp& dst, const sexpresso::Sexp& src)
+  {
+    // transfer data between matching src and dst footprints
+    std::cerr << "footprint " << dst.getChild(1).value.str << '\n';
+    // -> from src: all but pads
+    sexpresso::Sexp new_node;
+    for (int c = 0 ; c < src.childCount() ; ++c) {
+      if (!isPad(src.getChild(c))) {
+        // add child to new node
+        new_node.addChild(src.getChild(c));
+      } else {
+        // stitch nets
+        new_node.addChild(transferPad(src.getChild(c),dst));
+      }
+    }
+    // overwrite dst
+    dst = new_node;
   }
 
   void importNodes(PCBDesign& source)
@@ -240,13 +332,15 @@ public:
 
 int main(int,const char**)
 {
-
+try {
   PCBDesign prev("prev.kicad_pcb");
-  PCBDesign next("test.kicad_pcb");
+  PCBDesign next("next.kicad_pcb");
 
   next.importAttributes(prev);
   next.importNodes(prev);
   next.save("out.kicad_pcb");
-
+} catch (LibSL::Errors::Fatal& f) {
+  std::cerr << f.message() << '\n';
+}
   return 0;
 }
