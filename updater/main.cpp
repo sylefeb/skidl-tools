@@ -144,6 +144,8 @@ public:
         ///       line capabilities to not touch certain aspects of a new incoming
         ///       footprint, as this will always erase by the old one
         *D->second = *sse;
+        /// NOTE: this replacement above could be where we try to be more subtle,
+        ///       with a special function to transfer footprint attributes
 #if 0
         // find positions in the source footprint
         std::map<std::string, std::map<std::string, sexpresso::Sexp*> > srcs;
