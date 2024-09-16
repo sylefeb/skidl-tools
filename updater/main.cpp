@@ -24,7 +24,7 @@ class PCBDesign
 private:
 
   std::map<std::string,sexpresso::Sexp*> m_FootprintsByRef;
-  
+
   sexpresso::Sexp m_Root;
 
   std::string getFootprintRef(sexpresso::Sexp& se)
@@ -70,7 +70,7 @@ private:
       }
     }
   }
-  
+
   std::string signature(sexpresso::Sexp& se,int child_id)
   {
     std::string s;
@@ -81,8 +81,8 @@ private:
     }
     return s;
   }
-  
-  
+
+
   void findAttributes(sexpresso::Sexp& se,
                      sexpresso::Sexp&  parent,int child_id,
                      std::map<std::string,sexpresso::Sexp*>& _sig_to_node,
@@ -94,6 +94,12 @@ private:
           auto sig = signature(parent, child_id);
           _sig_to_node[sig]     = &parent;
           _all_attrs[sig]["at"] = &se;
+        } else if (se.getChild(0).value.str == "justify") {
+          LIBSL_TRACE;
+          auto sig = signature(parent, child_id);
+          std::cerr << sig << '\n';
+          _sig_to_node[sig]     = &parent;
+          _all_attrs[sig]["justify"] = &se;
         }
       }
     }
@@ -112,21 +118,33 @@ private:
 
 public:
 
-  PCBDesign(std::string fname) 
+  PCBDesign(std::string fname)
   {
     std::ifstream     t(fname);
     std::stringstream buffer;
     buffer << t.rdbuf();
     m_Root = sexpresso::parse(buffer.str());
-    extractFootprints(m_Root);  
+    extractFootprints(m_Root);
   }
-  
+
   void importAttributes(PCBDesign& source)
   {
+    // get the kicad_pcb roots
+    sl_assert(m_Root.childCount() > 0);
+    sexpresso::Sexp& d_kicad = m_Root.getChild(0);
+    sl_assert(source.root().childCount() > 0);
+    sexpresso::Sexp& s_kicad = source.root().getChild(0);
     for (auto [sfp,sse] : source.footprintsByRef()) {
       // find corresponding footprint in this design
       auto D = m_FootprintsByRef.find(sfp);
       if (D != m_FootprintsByRef.end()) { // match!
+        // replace the entire footprint
+        /// NOTE: initially wanted to be more subtle, but many internal nodes
+        ///       are not easily specified ; this might require have command
+        ///       line capabilities to not touch certain aspects of a new incoming
+        ///       footprint, as this will always erase by the old one
+        *D->second = *sse;
+#if 0
         // find positions in the source footprint
         std::map<std::string, std::map<std::string, sexpresso::Sexp*> > srcs;
         std::map<std::string, sexpresso::Sexp*> src_sig_to_node;
@@ -157,13 +175,14 @@ public:
             }
           }
         }
+#endif
       }
     }
   }
 
   void importNodes(PCBDesign& source)
   {
-    // get the kicad_pcb root
+    // get the kicad_pcb roots
     sl_assert(m_Root.childCount() > 0);
     sexpresso::Sexp& d_kicad = m_Root.getChild(0);
     sl_assert(source.root().childCount() > 0);
@@ -173,7 +192,9 @@ public:
       // find corresponding footprint in this design
       auto D = m_FootprintsByRef.find(sfp);
       if (D == m_FootprintsByRef.end()) { // not found
-        // add back the footprint // NOTE TODO FIXME well maybe this was trully removed? add back only it is has no ref from skidl?
+        // add back the footprint
+        /// NOTE: well maybe this was trully removed?
+        ///       add back only it is has no ref from skidl?
         d_kicad.addChild(*sse);
       }
     }
@@ -203,9 +224,9 @@ public:
   std::map<std::string,sexpresso::Sexp*> footprintsByRef() const {
     return m_FootprintsByRef;
   }
-  
+
   sexpresso::Sexp& root() { return m_Root; }
-  
+
   void save(std::string fname)
   {
     std::ofstream f(fname);
@@ -218,12 +239,12 @@ public:
 int main(int,const char**)
 {
 
-  PCBDesign prev("prev.kicad_pcb");  
-  PCBDesign next("next.kicad_pcb");
-  
+  PCBDesign prev("prev.kicad_pcb");
+  PCBDesign next("test.kicad_pcb");
+
   next.importAttributes(prev);
   next.importNodes(prev);
-  next.save("test.kicad_pcb");
-  
+  next.save("out.kicad_pcb");
+
   return 0;
 }
