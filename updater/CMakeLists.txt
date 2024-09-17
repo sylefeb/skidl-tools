@@ -8,6 +8,7 @@ INCLUDE_DIRECTORIES(
   ${PROJECT_SOURCE_DIR}/../libs/LibSL-small/src
   ${PROJECT_SOURCE_DIR}/../libs/LibSL-small/src/LibSL
   ${PROJECT_SOURCE_DIR}/../libs/sexpresso/sexpresso/
+  ${PROJECT_SOURCE_DIR}/../libs/tclap/include/
 )
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")

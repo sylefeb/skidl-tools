@@ -18,13 +18,16 @@ TODO:
 
 #include <map>
 #include <LibSL/CppHelpers/CppHelpers.h>
+#include <LibSL/Errors/Errors.h>
+
+#include <tclap/CmdLine.h>
 
 class PCBDesign
 {
 private:
 
   std::map<std::string,sexpresso::Sexp*> m_FootprintsByRef;
-  
+
   sexpresso::Sexp m_Root;
 
   std::string getFootprintRef(sexpresso::Sexp& se)
@@ -70,7 +73,7 @@ private:
       }
     }
   }
-  
+
   std::string signature(sexpresso::Sexp& se,int child_id)
   {
     std::string s;
@@ -81,8 +84,8 @@ private:
     }
     return s;
   }
-  
-  
+
+
   void findAttributes(sexpresso::Sexp& se,
                      sexpresso::Sexp&  parent,int child_id,
                      std::map<std::string,sexpresso::Sexp*>& _sig_to_node,
@@ -112,15 +115,18 @@ private:
 
 public:
 
-  PCBDesign(std::string fname) 
+  PCBDesign(std::string fname)
   {
     std::ifstream     t(fname);
     std::stringstream buffer;
+    if (!t) {
+      throw LibSL::Errors::Fatal("Cannot read from %s",fname.c_str());
+    }
     buffer << t.rdbuf();
     m_Root = sexpresso::parse(buffer.str());
-    extractFootprints(m_Root);  
+    extractFootprints(m_Root);
   }
-  
+
   void importAttributes(PCBDesign& source)
   {
     for (auto [sfp,sse] : source.footprintsByRef()) {
@@ -203,9 +209,9 @@ public:
   std::map<std::string,sexpresso::Sexp*> footprintsByRef() const {
     return m_FootprintsByRef;
   }
-  
+
   sexpresso::Sexp& root() { return m_Root; }
-  
+
   void save(std::string fname)
   {
     std::ofstream f(fname);
@@ -215,15 +221,46 @@ public:
 
 };
 
-int main(int,const char**)
+int main(int argc,const char **argv)
 {
+  try {
 
-  PCBDesign prev("prev.kicad_pcb");  
-  PCBDesign next("next.kicad_pcb");
-  
-  next.importAttributes(prev);
-  next.importNodes(prev);
-  next.save("test.kicad_pcb");
-  
+    TCLAP::CmdLine cmd(
+      "<< skidl-updater >>\n"
+      "(c) Sylvain Lefebvre -- @sylefeb\n"
+      "Under GPLv3 license, see LICENSE_GPLv3 in repo root\n"
+      ,' ', "v0.1");
+
+    TCLAP::ValueArg<std::string> arg_prev("p", "prev", "Previous PCB file (.kicad_pcb)", true, "","string");
+    cmd.add(arg_prev);
+    TCLAP::ValueArg<std::string> arg_next("n", "next", "New PCB file (.kicad_pcb)", true, "","string");
+    cmd.add(arg_next);
+    TCLAP::ValueArg<std::string> arg_outp("o", "output", "Output PCB file (.kicad_pcb)", false, "out.kicad_pcb", "string");
+    cmd.add(arg_outp);
+
+    cmd.parse(argc,argv);
+
+    std::cout << "Loading from   : " << arg_prev.getValue() << '\n';
+    std::cout << "Transferring to: " << arg_next.getValue() << '\n';
+
+    PCBDesign prev(arg_prev.getValue());
+    PCBDesign next(arg_next.getValue());
+
+    next.importAttributes(prev);
+    next.importNodes(prev);
+    next.save(arg_outp.getValue());
+
+  } catch (TCLAP::ArgException& err) {
+    std::cerr << "command line error: " << err.what() << "\n";
+    return -1;
+  } catch (LibSL::Errors::Fatal& err) {
+    std::cerr << LibSL::CppHelpers::Console::red << "error: " << err.message() << LibSL::CppHelpers::Console::gray << "\n";
+    return -2;
+  } catch (std::exception& err) {
+    std::cerr << "error: " << err.what() << "\n";
+    return -3;
+  }
+  return 0;
+
   return 0;
 }
