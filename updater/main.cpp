@@ -97,6 +97,12 @@ private:
           auto sig = signature(parent, child_id);
           _sig_to_node[sig]     = &parent;
           _all_attrs[sig]["at"] = &se;
+        } else if (se.getChild(0).value.str == "justify") {
+          LIBSL_TRACE;
+          auto sig = signature(parent, child_id);
+          std::cerr << sig << '\n';
+          _sig_to_node[sig]     = &parent;
+          _all_attrs[sig]["justify"] = &se;
         }
       }
     }
@@ -129,10 +135,22 @@ public:
 
   void importAttributes(PCBDesign& source)
   {
+    // get the kicad_pcb roots
+    sl_assert(m_Root.childCount() > 0);
+    sexpresso::Sexp& d_kicad = m_Root.getChild(0);
+    sl_assert(source.root().childCount() > 0);
+    sexpresso::Sexp& s_kicad = source.root().getChild(0);
     for (auto [sfp,sse] : source.footprintsByRef()) {
       // find corresponding footprint in this design
       auto D = m_FootprintsByRef.find(sfp);
       if (D != m_FootprintsByRef.end()) { // match!
+        // replace the entire footprint
+        /// NOTE: initially wanted to be more subtle, but many internal nodes
+        ///       are not easily specified ; this might require have command
+        ///       line capabilities to not touch certain aspects of a new incoming
+        ///       footprint, as this will always erase by the old one
+        transferFootprint(*D->second,*sse);
+#if 0
         // find positions in the source footprint
         std::map<std::string, std::map<std::string, sexpresso::Sexp*> > srcs;
         std::map<std::string, sexpresso::Sexp*> src_sig_to_node;
@@ -163,13 +181,108 @@ public:
             }
           }
         }
+#endif
       }
     }
   }
 
+  bool isPad(const sexpresso::Sexp& n)
+  {
+    if (n.isString()) return false;
+    if (n.childCount() > 1) {
+      if (n.getChild(0).isString()) {
+        if (n.getChild(0).value.str == "pad" && n.getChild(1).isString()) {
+          // pad!
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool isNet(const sexpresso::Sexp& n)
+  {
+    if (n.isString()) return false;
+    if (n.childCount() > 1) {
+      if (n.getChild(0).isString()) {
+        if (n.getChild(0).value.str == "net" && n.getChild(1).isString()) {
+          // net!
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  const sexpresso::Sexp& getPad(std::string name,const sexpresso::Sexp& footprint)
+  {
+    for (int c = 0 ; c < footprint.childCount() ; ++c) {
+      if (isPad(footprint.getChild(c))) {
+        if (footprint.getChild(c).getChild(1).value.str == name) {
+          return footprint.getChild(c);
+        }
+      }
+    }
+    throw LibSL::Errors::Fatal("could not find pad %s",name.c_str());
+    static sexpresso::Sexp not_found;
+    return not_found;
+  }
+
+  const sexpresso::Sexp& getNet(const sexpresso::Sexp& pad)
+  {
+    for (int c = 0 ; c < pad.childCount() ; ++c) {
+      if (isNet(pad.getChild(c))) {
+        return pad.getChild(c);
+      }
+    }
+    throw LibSL::Errors::Fatal("could not find net in pad");
+    static sexpresso::Sexp not_found;
+    return not_found;
+  }
+
+  sexpresso::Sexp transferPad(const sexpresso::Sexp& src_pad, const sexpresso::Sexp& dst_footprint)
+  {
+    sexpresso::Sexp new_pad;
+    std::cerr << "xfer pad " << src_pad.getChild(1).value.str << '\n';
+    const sexpresso::Sexp& dst_pad = getPad(src_pad.getChild(1).value.str,dst_footprint);
+    // from src: all but net
+    for (int c = 0 ; c < src_pad.childCount() ; ++c) {
+      if (!isNet(src_pad.getChild(c))) {
+        new_pad.addChild(src_pad.getChild(c));
+      }
+    }
+    // from dst: nets
+    try {
+      auto net = getNet(dst_pad);
+      new_pad.addChild(net);
+    } catch (...) {
+      // no net in pad, ignore
+    }
+    return new_pad;
+  }
+
+  void transferFootprint(sexpresso::Sexp& dst, const sexpresso::Sexp& src)
+  {
+    // transfer data between matching src and dst footprints
+    std::cerr << "footprint " << dst.getChild(1).value.str << '\n';
+    // -> from src: all but pads
+    sexpresso::Sexp new_node;
+    for (int c = 0 ; c < src.childCount() ; ++c) {
+      if (!isPad(src.getChild(c))) {
+        // add child to new node
+        new_node.addChild(src.getChild(c));
+      } else {
+        // stitch nets
+        new_node.addChild(transferPad(src.getChild(c),dst));
+      }
+    }
+    // overwrite dst
+    dst = new_node;
+  }
+
   void importNodes(PCBDesign& source)
   {
-    // get the kicad_pcb root
+    // get the kicad_pcb roots
     sl_assert(m_Root.childCount() > 0);
     sexpresso::Sexp& d_kicad = m_Root.getChild(0);
     sl_assert(source.root().childCount() > 0);
@@ -179,7 +292,9 @@ public:
       // find corresponding footprint in this design
       auto D = m_FootprintsByRef.find(sfp);
       if (D == m_FootprintsByRef.end()) { // not found
-        // add back the footprint // NOTE TODO FIXME well maybe this was trully removed? add back only it is has no ref from skidl?
+        // add back the footprint
+        /// NOTE: well maybe this was trully removed?
+        ///       add back only it is has no ref from skidl?
         d_kicad.addChild(*sse);
       }
     }
