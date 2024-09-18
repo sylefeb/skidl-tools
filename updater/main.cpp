@@ -74,51 +74,6 @@ private:
     }
   }
 
-  std::string signature(sexpresso::Sexp& se,int child_id)
-  {
-    std::string s;
-    for (int c = 0 ; c < child_id ; ++c) {
-      if (se.getChild(c).isString()) {
-        s = s + "_" + se.getChild(c).value.str;
-      }
-    }
-    return s;
-  }
-
-
-  void findAttributes(sexpresso::Sexp& se,
-                     sexpresso::Sexp&  parent,int child_id,
-                     std::map<std::string,sexpresso::Sexp*>& _sig_to_node,
-                     std::map<std::string,std::map<std::string,sexpresso::Sexp*> >& _all_attrs)
-  {
-    if (se.childCount() > 0) {
-      if (se.getChild(0).isString()) {
-        if (se.getChild(0).value.str == "at") {
-          auto sig = signature(parent, child_id);
-          _sig_to_node[sig]     = &parent;
-          _all_attrs[sig]["at"] = &se;
-        } else if (se.getChild(0).value.str == "justify") {
-          LIBSL_TRACE;
-          auto sig = signature(parent, child_id);
-          std::cerr << sig << '\n';
-          _sig_to_node[sig]     = &parent;
-          _all_attrs[sig]["justify"] = &se;
-        }
-      }
-    }
-    for (int c = 0; c < se.childCount(); ++c) {
-      if (se.getChild(c).isString()) {
-        if (se.getChild(c).value.str == "hide") {
-          auto sig = signature(se,c);
-          _sig_to_node[sig]       = &se;
-          _all_attrs[sig]["hide"] = &se.getChild(c);
-        }
-      } else {
-        findAttributes(se.getChild(c), se,c, _sig_to_node, _all_attrs);
-      }
-    }
-  }
-
 public:
 
   PCBDesign(std::string fname)
@@ -133,7 +88,7 @@ public:
     extractFootprints(m_Root);
   }
 
-  void importAttributes(PCBDesign& source)
+  void importFootprints(PCBDesign& source)
   {
     // get the kicad_pcb roots
     sl_assert(m_Root.childCount() > 0);
@@ -150,38 +105,6 @@ public:
         ///       line capabilities to not touch certain aspects of a new incoming
         ///       footprint, as this will always erase by the old one
         transferFootprint(*D->second,*sse);
-#if 0
-        // find positions in the source footprint
-        std::map<std::string, std::map<std::string, sexpresso::Sexp*> > srcs;
-        std::map<std::string, sexpresso::Sexp*> src_sig_to_node;
-        source.findAttributes(*sse,source.root(),0,src_sig_to_node,srcs);
-        // find positions in this footprint
-        std::map<std::string, std::map<std::string, sexpresso::Sexp*> > dests;
-        std::map<std::string, sexpresso::Sexp*> dst_sig_to_node;
-        findAttributes(*D->second,m_Root,0, dst_sig_to_node,dests);
-        std::cerr << "===== footprints " << sfp << " <-> " << D->first << '\n';
-        // match all and override
-        for (auto dpos : dests) { // go through all destination signatures
-          auto S = srcs.find(dpos.first); // search in source signatures
-          if (S != srcs.end()) { // match!
-            // replace nodes with
-            for (auto attr : S->second) {
-              if (dpos.second.count(attr.first)) {
-                // replace
-                (*dpos.second.at(attr.first)) = (*attr.second);
-              } else {
-                // add
-                LIBSL_TRACE;
-                // -> find parent in destination
-                auto D = dst_sig_to_node.find(dpos.first);
-                sl_assert(D != dst_sig_to_node.end());
-                LIBSL_TRACE;
-                D->second->addChild(*attr.second);
-              }
-            }
-          }
-        }
-#endif
       }
     }
   }
@@ -361,7 +284,7 @@ int main(int argc,const char **argv)
     PCBDesign prev(arg_prev.getValue());
     PCBDesign next(arg_next.getValue());
 
-    next.importAttributes(prev);
+    next.importFootprints(prev);
     next.importNodes(prev);
     next.save(arg_outp.getValue());
 
