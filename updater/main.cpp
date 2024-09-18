@@ -299,6 +299,4 @@ int main(int argc,const char **argv)
     return -3;
   }
   return 0;
-
-  return 0;
 }
