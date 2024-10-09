@@ -27,6 +27,8 @@ class PCBDesign
 private:
 
   std::map<std::string,sexpresso::Sexp*> m_FootprintsByRef;
+  std::map<int,std::string>              m_Nets_id2name;
+  std::map<std::string,int>              m_Nets_name2id;
 
   sexpresso::Sexp m_Root;
 
@@ -74,6 +76,26 @@ private:
     }
   }
 
+  void extractNets()
+  {
+    sl_assert(m_Root.childCount() > 0);
+    sexpresso::Sexp& kicad = m_Root.getChild(0);
+    for (int c = 0 ; c < kicad.childCount() ; ++c) {
+      sexpresso::Sexp& ch = kicad.getChild(c);
+      if (ch.childCount() == 3) {
+        if (ch.getChild(0).isString()) {
+          if (ch.getChild(0).value.str == "net") {
+            int id = std::atoi(ch.getChild(1).value.str.c_str());
+            std::string name = ch.getChild(2).value.str;
+            m_Nets_id2name[id] = name;
+            m_Nets_name2id[name] = id;
+            std::cerr << "net " << id << " " << name << "\n";
+          }
+        }
+      }
+    }
+  }
+
 public:
 
   PCBDesign(std::string fname)
@@ -86,15 +108,11 @@ public:
     buffer << t.rdbuf();
     m_Root = sexpresso::parse(buffer.str());
     extractFootprints(m_Root);
+    extractNets();
   }
 
   void importFootprints(PCBDesign& source)
   {
-    // get the kicad_pcb roots
-    sl_assert(m_Root.childCount() > 0);
-    sexpresso::Sexp& d_kicad = m_Root.getChild(0);
-    sl_assert(source.root().childCount() > 0);
-    sexpresso::Sexp& s_kicad = source.root().getChild(0);
     for (auto [sfp,sse] : source.footprintsByRef()) {
       // find corresponding footprint in this design
       auto D = m_FootprintsByRef.find(sfp);
@@ -203,6 +221,36 @@ public:
     dst = new_node;
   }
 
+  sexpresso::Sexp transferNodeWithNet(PCBDesign& source, const sexpresso::Sexp& src,std::string type)
+  {
+    sexpresso::Sexp new_node;
+    for (int c = 0 ; c < src.childCount() ; ++c) {
+      if (!isNet(src.getChild(c))) {
+        // add child to new node
+        new_node.addChild(src.getChild(c));
+      } else {
+        // get net id
+        int id           = std::atoi(src.getChild(c).getChild(1).value.str.c_str());
+        if (source.m_Nets_id2name.count(id)) {
+          std::string name = source.m_Nets_id2name.at(id);
+          if (m_Nets_name2id.count(name)) {
+            int dst_id = m_Nets_name2id.at(name);
+            sexpresso::Sexp new_net;
+            new_net.addChild("net");
+            new_net.addChild(std::to_string(dst_id));
+            new_node.addChild(new_net);
+          } else {
+            std::cerr << "<warning> cannot find net " << name << " for " << type << "\n";
+            // leaving the net empty triggers kicad to infer it automatically
+          }
+        } else {
+          std::cerr << "<warning> cannot find net " << id << " in source for " << type << "\n";
+        }
+      }
+    }
+    return new_node;
+  }
+
   void importNodes(PCBDesign& source)
   {
     // get the kicad_pcb roots
@@ -219,7 +267,7 @@ public:
         /// NOTE: well maybe this was trully removed?
         ///       add back only it is has no ref from skidl?
         d_kicad.addChild(*sse);
-      }
+      } // else, already imported
     }
     // everything else
     for (int c = 0; c < s_kicad.childCount(); ++c) {
@@ -227,7 +275,7 @@ public:
         if (s_kicad.getChild(c).childCount() > 0) {
           if (s_kicad.getChild(c).getChild(0).isString()) {
             auto s = s_kicad.getChild(c).getChild(0).value.str;
-            if (s != "version"
+            if (s  != "version"
               && s != "generator"
               && s != "general"
               && s != "paper"
@@ -235,8 +283,12 @@ public:
               && s != "setup"
               && s != "net"
               && s != "footprint"
+              && s != "via"
+              && s != "segment"
               ) {
               d_kicad.addChild(s_kicad.getChild(c));
+            } else if (s == "via" || s == "segment") {
+              d_kicad.addChild(transferNodeWithNet(source,s_kicad.getChild(c),s));
             }
           }
         }
