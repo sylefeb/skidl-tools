@@ -195,8 +195,12 @@ public:
         // add child to new node
         new_node.addChild(src.getChild(c));
       } else {
-        // stitch nets
-        new_node.addChild(transferPad(src.getChild(c),dst));
+        try {
+          // stitch nets
+          new_node.addChild(transferPad(src.getChild(c),dst));
+        } catch (...) {
+          std::cout << "pad does not exist in new design\n";
+        }
       }
     }
     // overwrite dst
