@@ -118,6 +118,7 @@ public:
       auto D = m_FootprintsByRef.find(sfp);
       if (D != m_FootprintsByRef.end()) { // match!
         // replace the entire footprint
+        std::cerr << "footprint " << sfp << '\n';
         /// NOTE: initially wanted to be more subtle, but many internal nodes
         ///       are not easily specified ; this might require have command
         ///       line capabilities to not touch certain aspects of a new incoming
@@ -157,16 +158,36 @@ public:
 
   const sexpresso::Sexp& getPad(std::string name,const sexpresso::Sexp& footprint)
   {
+    int prev_found = -1;
     for (int c = 0 ; c < footprint.childCount() ; ++c) {
       if (isPad(footprint.getChild(c))) {
         if (footprint.getChild(c).getChild(1).value.str == name) {
-          return footprint.getChild(c);
+          // NOTE: some footprints can have the same pad multiple times, typically
+          // only one instance has a net. Thus we search for one with a net, and
+          // return the last found if no net exists.
+          prev_found = c;
+          if (hasNet(footprint.getChild(c))) {
+            return footprint.getChild(c);
+          }
         }
       }
+    }
+    if (prev_found > -1) {
+      return footprint.getChild(prev_found);
     }
     throw LibSL::Errors::Fatal("could not find pad %s",name.c_str());
     static sexpresso::Sexp not_found;
     return not_found;
+  }
+
+  bool hasNet(const sexpresso::Sexp& pad)
+  {
+    for (int c = 0 ; c < pad.childCount() ; ++c) {
+      if (isNet(pad.getChild(c))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   const sexpresso::Sexp& getNet(const sexpresso::Sexp& pad)
@@ -198,6 +219,7 @@ public:
       new_pad.addChild(net);
     } catch (...) {
       // no net in pad, ignore
+      std::cerr << "<warning> no net in pad\n";
     }
     return new_pad;
   }
@@ -205,7 +227,6 @@ public:
   void transferFootprint(sexpresso::Sexp& dst, const sexpresso::Sexp& src)
   {
     // transfer data between matching src and dst footprints
-    std::cerr << "footprint " << dst.getChild(1).value.str << '\n';
     // -> from src: all but pads
     sexpresso::Sexp new_node;
     for (int c = 0 ; c < src.childCount() ; ++c) {
