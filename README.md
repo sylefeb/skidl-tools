@@ -86,4 +86,4 @@ make sure to edit the previous version `.kicad_pcb` and delete the component
 first. You will have to place the new footprint again, but that guarantees the
 footprint is properly updated.
 
-> Found another limitations? Please fill-in an issue.
+> Found another limitation? Please fill-in an issue in github.

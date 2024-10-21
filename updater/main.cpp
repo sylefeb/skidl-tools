@@ -2,8 +2,7 @@
 
 /*
 
-TODO:
-- hide attribute
+MIT license
 
 */
 
