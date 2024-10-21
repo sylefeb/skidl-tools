@@ -15,6 +15,7 @@ TODO:
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <filesystem>
 
 #include <map>
 #include <LibSL/CppHelpers/CppHelpers.h>
@@ -355,8 +356,14 @@ int main(int argc,const char **argv)
 
     cmd.parse(argc,argv);
 
-    std::cout << "Loading from   : " << arg_prev.getValue() << '\n';
-    std::cout << "Transferring to: " << arg_next.getValue() << '\n';
+    std::cout << "Loading from    : " << arg_prev.getValue() << '\n';
+    std::cout << "Transferring to : " << arg_next.getValue() << '\n';
+
+    if (arg_prev.getValue() == arg_outp.getValue()) {
+      std::cout << "Backup in       : " << arg_prev.getValue() << ".bak" << '\n';
+      std::filesystem::remove(arg_prev.getValue()+".bak"); // NOTE: due to a bug where overwrite_existing is ignored
+      std::filesystem::copy_file(arg_prev.getValue(),arg_prev.getValue()+".bak",std::filesystem::copy_options::overwrite_existing);
+    }
 
     PCBDesign prev(arg_prev.getValue());
     PCBDesign next(arg_next.getValue());
