@@ -2,13 +2,13 @@
 
 ## TL;DR
 
-This tool helps doing iterative design between a PCB described in skidl
-(python code) and KiCad's PCB editor (PcbNew): start placing and routing, go
+This tool helps doing iterative design between a PCB described in [skidl](https://devbisme.github.io/skidl/)
+(python code) and [KiCad](https://www.kicad.org/)'s PCB editor (PcbNew): start placing and routing, go
 back to code and add components, resume editing without loosing your previous changes.
 
-## What is this?
+## What is in this repo?
 
-A collection of tools (only one for now!) to help with PCB design using [KiCad](https://www.kicad.org/)
+A collection of tools (one for now!) to help with PCB design using [KiCad](https://www.kicad.org/)
 and [skidl](https://devbisme.github.io/skidl/).
 
 The main tool is `skidl-updater`, it takes a previous design and a newly generated
@@ -25,10 +25,14 @@ make install
 
 ## Example workflow
 
-For this example we will design a simple 'half-PMOD' (using only one PMOD row)
-with four LEDs on it. All files are in [`examples/pmod_leds`](examples/pmod_leds).
+This tutorial example walks through the process of progressively adding components to a board, using `skidl-updater` at each step to import prior changes to the PCB. For the sake of the tutorial the example is voluntarily cut
+into many small incremental steps.
 
-Here is the flow:
+> Note: the tutorial assumes some familiarity with KiCad's layout editor (PcbNew).
+
+The goal is to design a simple 'half-PMOD' (using only one PMOD row)
+with four LEDs on it. All files are in [`examples/pmod_leds`](examples/pmod_leds).
+Here is the workflow:
 - We start by a simple script defining VCC and GND nets and adding a connector, [board1.py](examples/pmod_leds/board1.py). Note how the connector is using a `ref` attribute (`PMOD`), this is essential to the inner workings of `skidl-updater`: each component has to have a unique `ref`.
 To generate the board we run `python board1.py`.
 
@@ -39,12 +43,11 @@ To generate the board we run `python board1.py`.
 <img src="examples/pmod_leds/3.png" width="400"/>
 
 - Now, we add the LEDs in [board2.py](examples/pmod_leds/board2.py). We generate [board2.kicad_pcb](examples/pmod_leds/board2.kicad_pcb) by running `python board2.py`.
-
-- But `board2.kicad_pcb` has lost all we did at step one. We don't want to redo what we just did, so we use `skidl-updater`:
+However `board2.kicad_pcb` has lost the contour and placement of the connector  we did at step one. We don't want to redo what we just did, so we use `skidl-updater`:
 
 `skidl-updater -p board1.kicad_pcb -n board2.kicad_pcb -o board2_edit.kicad_pcb`
 
-- We open `board2_edit.kicad_pcb` and are ready to place the LEDs, prior edits have been imported! We now place the LEDs neatly on the board, save and exit.
+- This command takes the content of `board1.kicad_pcb` as reference and imports it into `board2.kicad_pcb` to obtain `board2_edit.kicad_pcb`. We now can open `board2_edit.kicad_pcb` and are ready to place the LEDs, prior edits have been imported! We now place the LEDs neatly on the board, save and exit.
 
 <img src="examples/pmod_leds/2.png" width="300"/>
 <img src="examples/pmod_leds/3.png" width="300"/>
@@ -65,7 +68,7 @@ run  `python board3.py` to obtain `board3.kicad_pcb`, which has again lost all o
 <img src="examples/pmod_leds/6.png" width="300"/>
 <img src="examples/pmod_leds/7.png" width="300"/>
 
-Done!
+The board is done!
 
 > Note: In the example we save each step, but of course you can start from the
 > same file, running `skidl-updater -p board_edit.kicad_pcb -n board.kicad_pcb -o board_edit.kicad_pcb`
