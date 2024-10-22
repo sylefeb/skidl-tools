@@ -6,7 +6,7 @@ from kinet2pcb import *
 set_default_tool(KICAD7)
 
 # add a half-PMOD connector
-pmod = Part(ref='PMOD', 
+pmod = Part(ref='PMOD',
             lib='Connector_Generic', name='Conn_01x06',
             footprint="Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Horizontal")
 
@@ -16,8 +16,8 @@ pmod['p5'] += gnd
 pmod['p6'] += vcc3v3
 
 # add the LEDs
-led0 = Part(ref="led0", 
-            lib='Device', name='LED', 
+led0 = Part(ref="led0",
+            lib='Device', name='LED',
             footprint='LED_SMD:LED_0805_2012Metric_Pad1.15x1.40mm_HandSolder')
 led1,led2,led3 = led0 * 3
 # make sure each LED has a different ref (skidl-updater requires unique refs)

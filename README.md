@@ -6,6 +6,8 @@ This tool helps doing iterative design between a PCB described in [skidl](https:
 (python code) and [KiCad](https://www.kicad.org/)'s PCB editor (PcbNew): start placing and routing, go
 back to code and add components, resume editing without loosing your previous changes.
 
+**This is very much work in progress**, please see [Limitations](#limitations).
+
 ## What is in this repo?
 
 A collection of tools (one for now!) to help with PCB design using [KiCad](https://www.kicad.org/)
@@ -68,15 +70,20 @@ run  `python board3.py` to obtain `board3.kicad_pcb`, which has again lost all o
 <img src="examples/pmod_leds/6.png" width="300"/>
 <img src="examples/pmod_leds/7.png" width="300"/>
 
-The board is done!
+The board is done! (maybe don't fab it, it's just a quick example ;) ).
 
 > Note: In the example we save each step, but of course you can start from the
 > same file, running `skidl-updater -p board_edit.kicad_pcb -n board.kicad_pcb -o board_edit.kicad_pcb`
 > works (it will rename the previous file as a `.bak`, in case something goes wrong).
 
-## Gotchas
+## Limitations
 
-The tool comes with a few issues:
+**There are potential 'gotchas', be worried if kicad reports a warning when opening
+the PCB file.**
+
+**Use at your own risks -- always double check your design and the nets.**
+
+Some known issues and workarounds:
 
 - **Removing a component**. The tool is geared towards the idea of progressively
 *adding* components to the board. When removing a component, that is the script
