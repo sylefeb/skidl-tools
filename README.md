@@ -8,7 +8,7 @@ back to code and add components, resume editing without loosing your previous ch
 
 **Note:** (thanks to TheZoq2 for pointing this out) In many cases you do not need this
 tool and can simply use `generate_netlist()` from skidl and use KiCad's `Import > Netlist`
-feature. Try that first!
+feature to merge changes with your current PCB design. Try that first!
 
 ## What is in this repo?
 
