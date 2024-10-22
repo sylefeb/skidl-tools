@@ -19,6 +19,8 @@ PCB from skidl, and remaps prior edits onto the new file. See [Example workflow]
 ## How to compile
 
 ```
+git submodule init
+git submodule update
 mkdir BUILD
 cd BUILD
 cmake ../updater/
@@ -31,6 +33,8 @@ This tutorial example walks through the process of progressively adding componen
 into many small incremental steps.
 
 > Note: the tutorial assumes some familiarity with KiCad's layout editor (PcbNew).
+
+> This tutorial uses KiCad 7.
 
 The goal is to design a simple 'half-PMOD' (using only one PMOD row)
 with four LEDs on it. All files are in [`examples/pmod_leds`](examples/pmod_leds).
