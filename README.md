@@ -6,7 +6,9 @@ This tool helps doing iterative design between a PCB described in [skidl](https:
 (python code) and [KiCad](https://www.kicad.org/)'s PCB editor (PcbNew): start placing and routing, go
 back to code and add components, resume editing without loosing your previous changes.
 
-**This is very much work in progress**, please see [Limitations](#limitations).
+**Note:** (thanks to TheZoq2 for pointing this out) In many cases you do not need this
+tool and can simply use `generate_netlist()` from skidl and use KiCad's `Import > Netlist`
+feature.
 
 ## What is in this repo?
 
@@ -15,6 +17,8 @@ and [skidl](https://devbisme.github.io/skidl/).
 
 The main tool is `skidl-updater`, it takes a previous design and a newly generated
 PCB from skidl, and remaps prior edits onto the new file. See [Example workflow](#example-workflow) below.
+
+**This is very much work in progress**, please see [Limitations](#limitations).
 
 ## How to compile
 
