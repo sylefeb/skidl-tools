@@ -15,6 +15,7 @@ MIT license
 #include <sstream>
 #include <iostream>
 #include <filesystem>
+#include <regex>
 
 #include <map>
 #include <LibSL/CppHelpers/CppHelpers.h>
@@ -31,6 +32,16 @@ private:
   std::map<std::string,int>              m_Nets_name2id;
 
   sexpresso::Sexp m_Root;
+
+  std::string getFootprintType(sexpresso::Sexp& se)
+  {
+    if (se.childCount() > 2) {
+      if (se.getChild(0).getString() == "footprint") {
+        return se.getChild(1).getString();
+      }
+    }
+    return "";
+  }
 
   std::string getFootprintRef(sexpresso::Sexp& se)
   {
@@ -111,19 +122,43 @@ public:
     extractNets();
   }
 
-  void importFootprints(PCBDesign& source)
+  void importFootprints(PCBDesign& source,std::string filter)
   {
+    std::regex re(filter);
     for (auto [sfp,sse] : source.footprintsByRef()) {
+      // filter
+      if (std::regex_match(getFootprintType(*sse), re)) { continue; }
       // find corresponding footprint in this design
       auto D = m_FootprintsByRef.find(sfp);
       if (D != m_FootprintsByRef.end()) { // match!
-        // replace the entire footprint
-        std::cerr << "footprint " << sfp << '\n';
+        // replace the entire footprint using source (previous)
+        /// NOTE: this erases any footprint change in the new design,
+        ///       prioritizing the old one and any changes it may contain
+        std::cerr << "importing footprint " << sfp << " " << getFootprintType(*sse) << '\n';
         /// NOTE: initially wanted to be more subtle, but many internal nodes
         ///       are not easily specified ; this might require have command
         ///       line capabilities to not touch certain aspects of a new incoming
         ///       footprint, as this will always erase by the old one
         transferFootprint(*D->second,*sse);
+      }
+    }
+  }
+
+  void updateFootprintTransforms(PCBDesign& source,std::string filter)
+  {
+    std::regex re(filter);
+    for (auto [sfp,sse] : source.footprintsByRef()) {
+      // filter
+      if (!std::regex_match(getFootprintType(*sse), re)) { continue; }
+      // find corresponding footprint in this design
+      auto D = m_FootprintsByRef.find(sfp);
+      if (D != m_FootprintsByRef.end()) { // match!
+        std::cerr << "moving footprint " << sfp << " " << getFootprintType(*sse) << '\n';
+        // get transform in source (previous)
+        double x,y,r;
+        getFootprintTransform(*sse,x,y,r);
+        // apply it to destination (new)
+        applyFootprintTransform(*D->second,x,y,r);
       }
     }
   }
@@ -149,6 +184,32 @@ public:
       if (n.getChild(0).isString()) {
         if (n.getChild(0).value.str == "net" && n.getChild(1).isString()) {
           // net!
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool isAt(const sexpresso::Sexp& n,double& _x,double &_y,double& _r)
+  {
+    _x = _y = _r = 0;
+    if (n.isString()) return false;
+    if (n.childCount() > 1) {
+      if (n.getChild(0).isString()) {
+        if (n.getChild(0).value.str == "at") {
+          if (n.getChild(1).isString()) {
+            _x = std::atof(n.getChild(1).getString().c_str());
+          }
+          if (n.getChild(2).isString()) {
+            _y = std::atof(n.getChild(2).getString().c_str());
+          }
+          if (n.childCount()>3) {
+            if (n.getChild(3).isString()) {
+              _r = std::atof(n.getChild(3).getString().c_str());
+            }
+          }
+          // at!
           return true;
         }
       }
@@ -222,6 +283,51 @@ public:
       std::cerr << "<warning> no net in pad\n";
     }
     return new_pad;
+  }
+
+  void getFootprintTransform(const sexpresso::Sexp& fp,double& _x,double &_y,double& _r)
+  {
+    for (int c = 0 ; c < fp.childCount() ; ++c) {
+        if (isAt(fp.getChild(c),_x,_y,_r)) {
+          std::cerr << " - transform : " << _x << " " << _y << " " << _r << '\n';
+          return;
+        }
+    }
+  }
+
+  void applyRotation(sexpresso::Sexp& n,double r)
+  {
+    if (n.isString()) return;
+    double _x,_y,_r;
+    if (isAt(n,_x,_y,_r)) {
+      if (n.childCount() > 3) {
+        n.getChild(3).getString() = std::to_string((int)r);
+      } else if (n.childCount() == 3) {
+        n.addChild(std::to_string((int)r));
+      } else {
+        std::cerr << "<warning> improper transform encountered\n";
+      }
+    } else {
+      for (int c = 0 ; c < n.childCount() ; ++c) {
+        applyRotation(n.getChild(c),r);
+      }
+    }
+  }
+
+  void applyFootprintTransform(sexpresso::Sexp& fp,double x,double y,double r)
+  {
+    for (int c = 0 ; c < fp.childCount() ; ++c) {
+      double _x,_y,_r;
+      if (isAt(fp.getChild(c),_x,_y,_r)) {
+        // std::cerr << " - existing transform : " << _x << " " << _y << " " << _r << '\n';
+        fp.getChild(c).getChild(1).getString() = std::to_string(x);
+        fp.getChild(c).getChild(2).getString() = std::to_string(y);
+        if (_r != 0 || r != 0) {
+          applyRotation(fp,r);
+        }
+        return;
+      }
+    }
   }
 
   void transferFootprint(sexpresso::Sexp& dst, const sexpresso::Sexp& src)
@@ -352,6 +458,8 @@ int main(int argc,const char **argv)
     cmd.add(arg_next);
     TCLAP::ValueArg<std::string> arg_outp("o", "output", "Output PCB file (.kicad_pcb)", false, "out.kicad_pcb", "string");
     cmd.add(arg_outp);
+    TCLAP::ValueArg<std::string> arg_upd_footprint("", "update-footprints", "Filter for footprints that should be updated (regex)", false, "a^", "string");
+    cmd.add(arg_upd_footprint);
 
     cmd.parse(argc,argv);
 
@@ -367,7 +475,8 @@ int main(int argc,const char **argv)
     PCBDesign prev(arg_prev.getValue());
     PCBDesign next(arg_next.getValue());
 
-    next.importFootprints(prev);
+    next.importFootprints(prev,arg_upd_footprint.getValue());
+    next.updateFootprintTransforms(prev,arg_upd_footprint.getValue());
     next.importNodes(prev);
     next.save(arg_outp.getValue());
 
